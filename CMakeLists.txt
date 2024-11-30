@@ -9,7 +9,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 ################################################################################
 # Set a default build type if none was specified
 if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Choose Release or Debug" FORCE)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING 
+      "Choose the type of build, options are: Release|Debug|RelWithDebInfo (for distros)." FORCE)
 endif()
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 message(STATUS "Install directory: ${CMAKE_INSTALL_PREFIX}")
@@ -17,13 +18,13 @@ message(STATUS "Install directory: ${CMAKE_INSTALL_PREFIX}")
 # Version number
 execute_process(
         COMMAND git rev-parse --abbrev-ref HEAD
-        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+        WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
         OUTPUT_VARIABLE GIT_BRANCH
         OUTPUT_STRIP_TRAILING_WHITESPACE)
 
 execute_process(
         COMMAND git log -1 --format=%h
-        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+        WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
         OUTPUT_VARIABLE GIT_COMMIT_HASH
         OUTPUT_STRIP_TRAILING_WHITESPACE)
 
@@ -32,10 +33,10 @@ message(STATUS "Git commit hash: ${GIT_COMMIT_HASH}")
 
 message(STATUS "Generating version.hpp")
 configure_file(
-        ${CMAKE_SOURCE_DIR}/include/version.hpp.in
-        ${CMAKE_BINARY_DIR}/generated/version.hpp)
+        ${CMAKE_CURRENT_LIST_DIR}/include/version.hpp.in
+        ${CMAKE_CURRENT_BINARY_DIR}/generated/version.hpp)
 
-include_directories(${CMAKE_BINARY_DIR}/generated)
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/generated)
 
 ################################################################################
 # Compiler and linker flags
@@ -72,6 +73,7 @@ endif()
 
 # HTS
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
+find_package(ZLIB REQUIRED)
 find_package(HTSlib REQUIRED)
 if(HTSlib_FOUND)
     include_directories(${HTSlib_INCLUDE_DIRS})
@@ -103,22 +105,21 @@ endif()
 ################################################################################
 # Lib
 
-include_directories(${CMAKE_SOURCE_DIR}/thirdparty)
-include_directories(${CMAKE_SOURCE_DIR}/include)
-include_directories(${CMAKE_BINARY_DIR}/generated)
+include_directories(${CMAKE_CURRENT_LIST_DIR}/thirdparty)
+include_directories(${CMAKE_CURRENT_LIST_DIR}/include)
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/generated)
 
-file(GLOB SOURCES ${CMAKE_SOURCE_DIR}/src/*.cpp)
-file(GLOB MALLOC_COUNT_SOURCES ${CMAKE_SOURCE_DIR}/thirdparty/malloc_count/*.c)
-file(GLOB MURMUR_SOURCES ${CMAKE_SOURCE_DIR}/thirdparty/murmur/*.cpp)
+file(GLOB SOURCES ${CMAKE_CURRENT_LIST_DIR}/src/*.cpp)
+file(GLOB MURMUR_SOURCES ${CMAKE_CURRENT_LIST_DIR}/thirdparty/murmur/*.cpp)
 
 # 32 and 64 bits parse
-add_library(pfp ${SOURCES} ${MALLOC_COUNT_SOURCES} ${MURMUR_SOURCES})
-add_library(pfp64 ${SOURCES} ${MALLOC_COUNT_SOURCES} ${MURMUR_SOURCES})
+add_library(pfp ${SOURCES} ${MURMUR_SOURCES})
+add_library(pfp64 ${SOURCES} ${MURMUR_SOURCES})
 target_link_libraries(pfp lvsam)
 target_link_libraries(pfp64 lvsam)
 target_compile_options(pfp64 PRIVATE "-DPFP_LONG_TYPE=ON")
 
-set(VCF_LIB_DEPS ${HTSlib_LIBRARIES} dl pthread lvsam)# ssl crypto)
+set(VCF_LIB_DEPS ${HTSlib_LIBRARIES} ${ZLIB_LIBRARIES} dl pthread lvsam)# ssl crypto)
 
 ################################################################################
 # Tests
@@ -160,11 +161,11 @@ add_executable(vcf_to_fa vcf_to_fa.cpp)
 target_link_libraries(vcf_to_fa pfp ${VCF_LIB_DEPS})
 
 # Unparse
-add_executable(unparse unparse.cpp)
-target_link_libraries(unparse pfp ${VCF_LIB_DEPS})
-add_executable(unparse64 unparse.cpp)
-target_compile_options(unparse64 PRIVATE "-DPFP_LONG_TYPE=ON")
-target_link_libraries(unparse64 pfp64 ${VCF_LIB_DEPS})
+add_executable(pfp++_unparse unparse.cpp)
+target_link_libraries(pfp++_unparse pfp ${VCF_LIB_DEPS})
+add_executable(pfp++64_unparse unparse.cpp)
+target_compile_options(pfp++64_unparse PRIVATE "-DPFP_LONG_TYPE=ON")
+target_link_libraries(pfp++64_unparse pfp64 ${VCF_LIB_DEPS})
 
 # Integrity Check
 add_executable(check check_integrity.cpp)
@@ -173,4 +174,4 @@ add_executable(check64 check_integrity.cpp)
 target_compile_options(check64 PRIVATE "-DPFP_LONG_TYPE=ON")
 target_link_libraries(check64 pfp64 ${VCF_LIB_DEPS})
 
-install(TARGETS pfp++ pfp++64 AuPair AuPair64 mpfp++ mpfp++64 unparse unparse64 check check64 TYPE RUNTIME)
+install(TARGETS pfp++ pfp++64 AuPair AuPair64 mpfp++ mpfp++64 pfp++_unparse pfp++64_unparse check check64 TYPE RUNTIME)
